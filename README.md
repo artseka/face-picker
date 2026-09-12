@@ -70,3 +70,5 @@ gh api -X POST repos/:owner/face-picker/pages -f "source[branch]=main" -f "sourc
 รอสักครู่แล้วเข้าที่ `https://<ชื่อผู้ใช้>.github.io/face-picker`
 
 หากยังไม่มี `gh` ให้อัปโหลดโค้ดขึ้นหน้าเว็บ GitHub เอง แล้วเปิด Pages จาก Settings แทน
+
+อัปเดตล่าสุด: เชื่อมต่อ Netlify auto-deploy จาก GitHub แล้ว
