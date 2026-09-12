@@ -785,13 +785,42 @@ function centerOf(box) {
   return { cx: box.x + box.w / 2, cy: box.y + box.h / 2 };
 }
 
+function isPlausibleFace(det) {
+  const box = det.boundingBox;
+  const aspect = box.width / box.height;
+  if (aspect < 0.6 || aspect > 1.5) return false;
+
+  const kp = det.keypoints;
+  if (!kp || kp.length < 4) return true; // no keypoints to check — don't over-reject
+
+  // MediaPipe FaceDetector keypoint order: rightEye, leftEye, noseTip, mouthCenter, ...
+  const toPx = (p) => ({ x: p.x * canvas.width, y: p.y * canvas.height });
+  const rightEye = toPx(kp[0]);
+  const leftEye = toPx(kp[1]);
+  const nose = toPx(kp[2]);
+  const mouth = toPx(kp[3]);
+
+  const eyeDist = Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y);
+  if (eyeDist < box.width * 0.15 || eyeDist > box.width * 0.75) return false;
+
+  const eyeYDiff = Math.abs(leftEye.y - rightEye.y);
+  if (eyeYDiff > eyeDist * 0.8) return false; // eyes too far off from level
+
+  const eyeMidY = (leftEye.y + rightEye.y) / 2;
+  if (nose.y < eyeMidY - eyeDist * 0.3) return false; // nose should sit at/below eye line
+  if (mouth.y < nose.y - eyeDist * 0.3) return false; // mouth should sit at/below nose
+
+  return true;
+}
+
 function updateTracks(detections) {
   const diag = Math.hypot(canvas.width, canvas.height);
   const matchDist = diag * TRACK_MATCH_RATIO;
   const now = performance.now();
   const usedTrackIds = new Set();
+  const plausibleDetections = detections.filter(isPlausibleFace);
 
-  for (const det of detections) {
+  for (const det of plausibleDetections) {
     const box = det.boundingBox; // {originX, originY, width, height}
     const newBox = { x: box.originX, y: box.originY, w: box.width, h: box.height };
     const nc = centerOf(newBox);
