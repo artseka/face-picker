@@ -126,6 +126,9 @@
     height: 100%;
     transform: scaleX(-1);
   }
+  .video-wrap video.no-mirror {
+    transform: none;
+  }
   .video-wrap canvas {
     position: absolute;
     inset: 0;
@@ -317,6 +320,7 @@
     <div class="controls">
       <button class="primary" id="pickBtn" disabled>🎲 สุ่ม</button>
       <button id="restartBtn" disabled>🔄 ล้าง / รีเซ็ต</button>
+      <button id="switchCamBtn" disabled>🔁 สลับกล้อง</button>
       <button class="danger" id="stopCamBtn" disabled>ปิดกล้อง</button>
     </div>
 
@@ -387,6 +391,7 @@ const placeholder = document.getElementById('placeholder');
 const banner = document.getElementById('banner');
 const startCamBtn = document.getElementById('startCamBtn');
 const stopCamBtn = document.getElementById('stopCamBtn');
+const switchCamBtn = document.getElementById('switchCamBtn');
 const pickBtn = document.getElementById('pickBtn');
 const restartBtn = document.getElementById('restartBtn');
 const statusText = document.getElementById('statusText');
@@ -409,6 +414,7 @@ let stream = null;
 let rafId = null;
 let running = false;
 
+let currentFacingMode = 'user';
 let tracks = [];       // {id, x, y, w, h, lastSeen}
 let nextTrackId = 1;
 const TRACK_MATCH_RATIO = 0.12; // 12% of frame diagonal
@@ -507,7 +513,7 @@ async function startCamera() {
   try {
     setStatus('กำลังขอสิทธิ์เข้าถึงกล้อง...');
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: 'user' },
+      video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: currentFacingMode },
       audio: false
     });
   } catch (err) {
@@ -517,6 +523,7 @@ async function startCamera() {
   }
 
   video.srcObject = stream;
+  video.classList.toggle('no-mirror', currentFacingMode === 'environment');
   await new Promise(resolve => {
     video.onloadedmetadata = () => resolve();
   });
@@ -525,6 +532,14 @@ async function startCamera() {
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   videoWrap.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const camCount = devices.filter(d => d.kind === 'videoinput').length;
+    switchCamBtn.style.display = camCount > 1 ? '' : 'none';
+  } catch (e) {
+    // ignore — leave switch button as-is if enumeration isn't supported
+  }
 
   if (!faceDetector) {
     setStatus('กำลังโหลดโมเดลตรวจจับใบหน้า...');
@@ -546,6 +561,7 @@ async function startCamera() {
   pickBtn.disabled = false;
   fsPickBtn.disabled = false;
   restartBtn.disabled = false;
+  switchCamBtn.disabled = false;
   stopCamBtn.disabled = false;
   startCamBtn.disabled = true;
   setStatus('พร้อมสุ่มหน้าแล้ว — กด Space หรือปุ่ม "สุ่ม"');
@@ -570,13 +586,53 @@ function stopCamera() {
   pickBtn.disabled = true;
   fsPickBtn.disabled = true;
   restartBtn.disabled = true;
+  switchCamBtn.disabled = true;
   stopCamBtn.disabled = true;
   startCamBtn.disabled = false;
+  currentFacingMode = 'user';
+  video.classList.remove('no-mirror');
   setStatus('ปิดกล้องแล้ว');
+}
+
+async function switchCamera() {
+  if (!running || switchCamBtn.disabled) return;
+  const nextFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+  switchCamBtn.disabled = true;
+  setStatus('กำลังสลับกล้อง...');
+
+  let newStream;
+  try {
+    newStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: nextFacingMode },
+      audio: false
+    });
+  } catch (err) {
+    showBanner('สลับกล้องไม่สำเร็จ: ' + (err.message || err.name), 'error');
+    setStatus('พร้อมสุ่มหน้าแล้ว');
+    switchCamBtn.disabled = false;
+    return;
+  }
+
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = newStream;
+  currentFacingMode = nextFacingMode;
+  video.srcObject = stream;
+  video.classList.toggle('no-mirror', currentFacingMode === 'environment');
+  await new Promise(resolve => { video.onloadedmetadata = () => resolve(); });
+  await video.play();
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  videoWrap.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+  tracks = [];
+  hideBanner();
+  switchCamBtn.disabled = false;
+  setStatus('พร้อมสุ่มหน้าแล้ว — กด Space หรือปุ่ม "สุ่ม"');
 }
 
 startCamBtn.addEventListener('click', startCamera);
 stopCamBtn.addEventListener('click', stopCamera);
+switchCamBtn.addEventListener('click', switchCamera);
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
@@ -647,6 +703,7 @@ function updateTracks(detections) {
 
 // ---------- Drawing ----------
 function mirroredX(x, w) {
+  if (currentFacingMode === 'environment') return x;
   return canvas.width - x - w;
 }
 
