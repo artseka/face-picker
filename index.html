@@ -394,6 +394,13 @@
             </label>
           </div>
           <div class="toggle-row">
+            <span>พูดชื่อ/คำถามด้วยเสียง (Text-to-Speech)</span>
+            <label class="switch">
+              <input type="checkbox" id="speakToggle" checked />
+              <span class="slider-ui"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
             <span>แสดงกรอบใบหน้าทั้งหมดขณะไม่ได้สุ่ม</span>
             <label class="switch">
               <input type="checkbox" id="showBoxesToggle" checked />
@@ -444,6 +451,7 @@ const confSlider = document.getElementById('confSlider');
 const confVal = document.getElementById('confVal');
 const noRepeatToggle = document.getElementById('noRepeatToggle');
 const soundToggle = document.getElementById('soundToggle');
+const speakToggle = document.getElementById('speakToggle');
 const showBoxesToggle = document.getElementById('showBoxesToggle');
 const resetPickedBtn = document.getElementById('resetPickedBtn');
 const fsBtn = document.getElementById('fsBtn');
@@ -501,6 +509,31 @@ function playConfirmSound() {
   setTimeout(() => beep(783.99, 0.22, 'sine', 0.08), 90);
 }
 
+// ---------- Text-to-speech ----------
+let thaiVoice = null;
+function loadThaiVoice() {
+  if (!('speechSynthesis' in window)) return;
+  const voices = speechSynthesis.getVoices();
+  thaiVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('th')) || null;
+}
+if ('speechSynthesis' in window) {
+  loadThaiVoice();
+  speechSynthesis.onvoiceschanged = loadThaiVoice;
+}
+
+function speakResult(name, question) {
+  if (!speakToggle.checked) return;
+  if (!('speechSynthesis' in window)) return;
+  let text = `${name} ถูกเลือก`;
+  if (question) text += ` คำถามคือ ${question}`;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'th-TH';
+  if (thaiVoice) utterance.voice = thaiVoice;
+  utterance.rate = 1;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utterance);
+}
+
 // ---------- UI helpers ----------
 function showBanner(msg, kind = 'info') {
   banner.textContent = msg;
@@ -538,7 +571,9 @@ function pickRandomQuestion() {
   return questions[Math.floor(Math.random() * questions.length)];
 }
 
+let lastPickedLabel = '';
 function showResultCard(name, question) {
+  lastPickedLabel = name;
   resultName.textContent = `🎉 ${name}`;
   if (question) {
     resultQuestion.textContent = question;
@@ -553,7 +588,10 @@ function showResultCard(name, question) {
 
 rerollQuestionBtn.addEventListener('click', () => {
   const q = pickRandomQuestion();
-  if (q) resultQuestion.textContent = q;
+  if (q) {
+    resultQuestion.textContent = q;
+    speakResult(lastPickedLabel, q);
+  }
 });
 
 confSlider.addEventListener('input', () => {
@@ -671,6 +709,7 @@ function stopCamera() {
   currentFacingMode = 'user';
   video.classList.remove('no-mirror');
   resultCard.hidden = true;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
   setStatus('ปิดกล้องแล้ว');
 }
 
@@ -733,6 +772,7 @@ restartBtn.addEventListener('click', () => {
   pickedIds.clear();
   hideBanner();
   resultCard.hidden = true;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
   if (spinning && spinTimer) {
     clearTimeout(spinTimer);
     spinning = false;
@@ -898,6 +938,7 @@ function startPick() {
       setStatus(`🎉 ผลการสุ่ม: ${label}`);
       showBanner(`ผลการสุ่ม: ${label}`, 'success');
       showResultCard(label, question);
+      setTimeout(() => speakResult(label, question), 350);
       spinning = false;
       pickBtn.disabled = false;
       fsPickBtn.disabled = false;
