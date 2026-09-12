@@ -785,13 +785,18 @@ function centerOf(box) {
   return { cx: box.x + box.w / 2, cy: box.y + box.h / 2 };
 }
 
+const MIN_FACE_SCORE = 0.6; // hard floor, independent of the sensitivity slider
+
 function isPlausibleFace(det) {
+  const score = det.categories && det.categories[0] ? det.categories[0].score : 1;
+  if (score < MIN_FACE_SCORE) return false;
+
   const box = det.boundingBox;
   const aspect = box.width / box.height;
-  if (aspect < 0.6 || aspect > 1.5) return false;
+  if (aspect < 0.7 || aspect > 1.3) return false;
 
   const kp = det.keypoints;
-  if (!kp || kp.length < 4) return true; // no keypoints to check — don't over-reject
+  if (!kp || kp.length < 4) return false; // no keypoints means we can't verify — reject to be safe
 
   // MediaPipe FaceDetector keypoint order: rightEye, leftEye, noseTip, mouthCenter, ...
   const toPx = (p) => ({ x: p.x * canvas.width, y: p.y * canvas.height });
@@ -801,14 +806,20 @@ function isPlausibleFace(det) {
   const mouth = toPx(kp[3]);
 
   const eyeDist = Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y);
-  if (eyeDist < box.width * 0.15 || eyeDist > box.width * 0.75) return false;
+  if (eyeDist < box.width * 0.25 || eyeDist > box.width * 0.55) return false;
 
   const eyeYDiff = Math.abs(leftEye.y - rightEye.y);
-  if (eyeYDiff > eyeDist * 0.8) return false; // eyes too far off from level
+  if (eyeYDiff > eyeDist * 0.5) return false; // eyes too far off from level
 
   const eyeMidY = (leftEye.y + rightEye.y) / 2;
-  if (nose.y < eyeMidY - eyeDist * 0.3) return false; // nose should sit at/below eye line
-  if (mouth.y < nose.y - eyeDist * 0.3) return false; // mouth should sit at/below nose
+  if (nose.y < eyeMidY) return false; // nose must sit below the eye line
+  if (nose.y > eyeMidY + box.height * 0.65) return false; // but not absurdly far down
+  if (mouth.y < nose.y) return false; // mouth must sit below the nose
+  if (mouth.y > box.originY + box.height * 1.1) return false; // mouth shouldn't fall outside the box
+
+  const noseX = nose.x;
+  const eyeMidX = (leftEye.x + rightEye.x) / 2;
+  if (Math.abs(noseX - eyeMidX) > eyeDist * 0.6) return false; // nose should be roughly centered between the eyes
 
   return true;
 }
