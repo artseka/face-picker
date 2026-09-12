@@ -203,6 +203,32 @@
     color: var(--muted);
   }
 
+  .result-card {
+    width: 100%;
+    background: linear-gradient(180deg, rgba(61,220,132,0.12), rgba(61,220,132,0.03));
+    border: 1px solid var(--green);
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .result-name {
+    font-size: clamp(20px, 4vw, 28px);
+    font-weight: 900;
+    color: var(--green);
+  }
+  .result-question {
+    font-size: clamp(16px, 3vw, 20px);
+    font-weight: 700;
+    color: var(--text);
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 10px 16px;
+  }
+
   .settings {
     width: 100%;
     background: var(--panel);
@@ -326,12 +352,23 @@
 
     <div class="status" id="statusText">กดปุ่ม "เปิดกล้อง" เพื่อเริ่มต้น</div>
 
+    <div class="result-card" id="resultCard" hidden>
+      <div class="result-name" id="resultName"></div>
+      <div class="result-question" id="resultQuestion" hidden></div>
+      <button id="rerollQuestionBtn" hidden>🎲 สุ่มคำถามใหม่ (คนเดิม)</button>
+    </div>
+
     <details class="settings" id="settingsPanel">
       <summary>⚙️ ตั้งค่า</summary>
       <div class="settings-body">
         <div class="field">
           <label for="namesArea">รายชื่อผู้เข้าร่วม (ไม่บังคับ, บรรทัดละ 1 ชื่อ) — <span class="count-badge" id="namesCount">0 รายชื่อ</span></label>
           <textarea id="namesArea" placeholder="ใส่ชื่อทีละบรรทัด เช่น&#10;สมชาย&#10;สมหญิง&#10;..."></textarea>
+        </div>
+
+        <div class="field">
+          <label for="questionsArea">คำถาม/โจทย์ (ไม่บังคับ, บรรทัดละ 1 ข้อ) — สุ่มมาโชว์คู่กับคนที่ถูกเลือก — <span class="count-badge" id="questionsCount">0 ข้อ</span></label>
+          <textarea id="questionsArea" placeholder="ใส่คำถามทีละบรรทัด เช่น&#10;ร้องเพลง 1 ท่อน&#10;เล่ามุกตลก 1 เรื่อง&#10;..."></textarea>
         </div>
 
         <div class="field">
@@ -397,6 +434,12 @@ const restartBtn = document.getElementById('restartBtn');
 const statusText = document.getElementById('statusText');
 const namesArea = document.getElementById('namesArea');
 const namesCount = document.getElementById('namesCount');
+const questionsArea = document.getElementById('questionsArea');
+const questionsCount = document.getElementById('questionsCount');
+const resultCard = document.getElementById('resultCard');
+const resultName = document.getElementById('resultName');
+const resultQuestion = document.getElementById('resultQuestion');
+const rerollQuestionBtn = document.getElementById('rerollQuestionBtn');
 const confSlider = document.getElementById('confSlider');
 const confVal = document.getElementById('confVal');
 const noRepeatToggle = document.getElementById('noRepeatToggle');
@@ -476,6 +519,42 @@ function updateNamesCount() {
 }
 namesArea.addEventListener('input', updateNamesCount);
 updateNamesCount();
+
+function updateQuestionsCount() {
+  const lines = questionsArea.value.split('\n').map(s => s.trim()).filter(Boolean);
+  questionsCount.textContent = `${lines.length} ข้อ`;
+  return lines;
+}
+questionsArea.addEventListener('input', updateQuestionsCount);
+updateQuestionsCount();
+
+function getQuestionsList() {
+  return updateQuestionsCount();
+}
+
+function pickRandomQuestion() {
+  const questions = getQuestionsList();
+  if (questions.length === 0) return null;
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+function showResultCard(name, question) {
+  resultName.textContent = `🎉 ${name}`;
+  if (question) {
+    resultQuestion.textContent = question;
+    resultQuestion.hidden = false;
+    rerollQuestionBtn.hidden = false;
+  } else {
+    resultQuestion.hidden = true;
+    rerollQuestionBtn.hidden = true;
+  }
+  resultCard.hidden = false;
+}
+
+rerollQuestionBtn.addEventListener('click', () => {
+  const q = pickRandomQuestion();
+  if (q) resultQuestion.textContent = q;
+});
 
 confSlider.addEventListener('input', () => {
   confVal.textContent = Number(confSlider.value).toFixed(2);
@@ -591,6 +670,7 @@ function stopCamera() {
   startCamBtn.disabled = false;
   currentFacingMode = 'user';
   video.classList.remove('no-mirror');
+  resultCard.hidden = true;
   setStatus('ปิดกล้องแล้ว');
 }
 
@@ -652,6 +732,7 @@ restartBtn.addEventListener('click', () => {
   tracks = [];
   pickedIds.clear();
   hideBanner();
+  resultCard.hidden = true;
   if (spinning && spinTimer) {
     clearTimeout(spinTimer);
     spinning = false;
@@ -778,6 +859,7 @@ function startPick() {
   if (spinning) return;
   ensureAudio();
   hideBanner();
+  resultCard.hidden = true;
 
   const pool = getPool();
   if (pool.length === 0) {
@@ -812,8 +894,10 @@ function startPick() {
       pickedIds.add(finalTrack.id);
       playConfirmSound();
       const label = nameForTrack(finalTrack);
+      const question = pickRandomQuestion();
       setStatus(`🎉 ผลการสุ่ม: ${label}`);
       showBanner(`ผลการสุ่ม: ${label}`, 'success');
+      showResultCard(label, question);
       spinning = false;
       pickBtn.disabled = false;
       fsPickBtn.disabled = false;
