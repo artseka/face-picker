@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>สุ่มหน้า</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #eef0f4;
+    --muted: #9aa2b1;
+    --accent: #4da6ff;
+    --accent-2: #ffcc4d;
+    --green: #3ddc84;
+    --red: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    padding: 18px 24px 8px;
+    text-align: center;
+  }
+  header h1 {
+    margin: 0;
+    font-size: clamp(22px, 4vw, 32px);
+    font-weight: 900;
+    letter-spacing: 0.5px;
+  }
+  header p {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px 32px;
+  }
+  .stage {
+    width: 100%;
+    max-width: 1400px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .video-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #000;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .video-wrap:fullscreen {
+    aspect-ratio: unset;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+  .video-wrap:fullscreen video,
+  .video-wrap:fullscreen canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .fs-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 4;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .fs-btn:hover { background: rgba(0,0,0,0.7); }
+
+  .fs-controls {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 4;
+    display: none;
+    gap: 10px;
+  }
+  .video-wrap:fullscreen .fs-controls { display: flex; }
+  .fs-controls button {
+    background: rgba(20,22,28,0.75);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .fs-controls button.primary {
+    background: var(--accent);
+    color: #06131f;
+  }
+  .video-wrap video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: scaleX(-1);
+  }
+  .video-wrap canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    color: var(--muted);
+    padding: 24px;
+    text-align: center;
+    z-index: 2;
+  }
+  .placeholder button {
+    pointer-events: auto;
+  }
+  .banner {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 3;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    display: none;
+  }
+  .banner.show { display: block; }
+  .banner.error { color: var(--red); border: 1px solid var(--red); }
+  .banner.info { color: var(--accent-2); border: 1px solid var(--accent-2); }
+  .banner.success { color: var(--green); border: 1px solid var(--green); }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+  button {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, border-color 0.15s;
+  }
+  button:hover { background: #262b36; border-color: #3a4150; }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #06131f; border-color: var(--accent); }
+  button.primary:hover { background: #6cb8ff; }
+  button.danger { background: transparent; border-color: var(--red); color: var(--red); }
+
+  .status {
+    text-align: center;
+    min-height: 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .settings {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .settings summary {
+    cursor: pointer;
+    padding: 14px 18px;
+    font-weight: 700;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .settings summary::-webkit-details-marker { display: none; }
+  .settings summary::after {
+    content: '▾';
+    color: var(--muted);
+    transition: transform 0.15s;
+  }
+  .settings[open] summary::after { transform: rotate(180deg); }
+  .settings-body {
+    padding: 4px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  textarea {
+    font-family: inherit;
+    font-size: 14px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    resize: vertical;
+    min-height: 90px;
+  }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row.between { justify-content: space-between; }
+  input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-top: 1px solid var(--border);
+  }
+  .toggle-row:first-child { border-top: none; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider-ui {
+    position: absolute; cursor: pointer; inset: 0;
+    background: #333846; border-radius: 24px; transition: 0.2s;
+  }
+  .slider-ui::before {
+    content: ""; position: absolute; height: 18px; width: 18px;
+    left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s;
+  }
+  .switch input:checked + .slider-ui { background: var(--accent); }
+  .switch input:checked + .slider-ui::before { transform: translateX(18px); }
+
+  .count-badge {
+    font-size: 12px; color: var(--muted);
+  }
+
+  .kbd-hint {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-top: 4px;
+  }
+  .kbd-hint kbd {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-family: inherit;
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 12px 0 20px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📷 สุ่มหน้า</h1>
+  <p>สุ่มเลือกใบหน้าจากกล้องแบบสุ่มจริง ๆ ด้วยการตรวจจับใบหน้าในเบราว์เซอร์</p>
+</header>
+
+<main>
+  <div class="stage">
+    <div class="video-wrap" id="videoWrap">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <button class="fs-btn" id="fsBtn" title="เต็มจอ" style="display:none;">⛶</button>
+      <div class="fs-controls">
+        <button class="primary" id="fsPickBtn">🎲 สุ่ม</button>
+        <button id="fsRestartBtn">🔄 ล้าง/รีเซ็ต</button>
+        <button id="fsExitBtn">ออกจากเต็มจอ</button>
+      </div>
+      <div class="banner" id="banner"></div>
+      <div class="placeholder" id="placeholder">
+        <div>ยังไม่ได้เปิดกล้อง</div>
+        <button class="primary" id="startCamBtn">เปิดกล้อง</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="pickBtn" disabled>🎲 สุ่ม</button>
+      <button id="restartBtn" disabled>🔄 ล้าง / รีเซ็ต</button>
+      <button class="danger" id="stopCamBtn" disabled>ปิดกล้อง</button>
+    </div>
+
+    <div class="status" id="statusText">กดปุ่ม "เปิดกล้อง" เพื่อเริ่มต้น</div>
+
+    <details class="settings" id="settingsPanel">
+      <summary>⚙️ ตั้งค่า</summary>
+      <div class="settings-body">
+        <div class="field">
+          <label for="namesArea">รายชื่อผู้เข้าร่วม (ไม่บังคับ, บรรทัดละ 1 ชื่อ) — <span class="count-badge" id="namesCount">0 รายชื่อ</span></label>
+          <textarea id="namesArea" placeholder="ใส่ชื่อทีละบรรทัด เช่น&#10;สมชาย&#10;สมหญิง&#10;..."></textarea>
+        </div>
+
+        <div class="field">
+          <label for="confSlider">ความไวในการตรวจจับใบหน้า (minDetectionConfidence): <span id="confVal">0.50</span></label>
+          <div class="row">
+            <input type="range" id="confSlider" min="0.20" max="0.80" step="0.01" value="0.50" />
+          </div>
+        </div>
+
+        <div>
+          <div class="toggle-row">
+            <span>ไม่สุ่มซ้ำคนเดิมจนกว่าจะครบทุกคน</span>
+            <label class="switch">
+              <input type="checkbox" id="noRepeatToggle" checked />
+              <span class="slider-ui"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <span>เปิดเสียง</span>
+            <label class="switch">
+              <input type="checkbox" id="soundToggle" checked />
+              <span class="slider-ui"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <span>แสดงกรอบใบหน้าทั้งหมดขณะไม่ได้สุ่ม</span>
+            <label class="switch">
+              <input type="checkbox" id="showBoxesToggle" checked />
+              <span class="slider-ui"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="resetPickedBtn">ล้างประวัติคนที่เคยถูกสุ่ม</button>
+        </div>
+      </div>
+    </details>
+
+    <div class="kbd-hint">
+      <kbd>Space</kbd> สุ่ม &nbsp;·&nbsp; <kbd>R</kbd> ล้าง/รีเซ็ต &nbsp;·&nbsp; <kbd>F</kbd> เต็มจอ &nbsp;·&nbsp; <kbd>Esc</kbd> หยุด/ปิด
+    </div>
+  </div>
+</main>
+
+<footer>ทำงานทั้งหมดในเบราว์เซอร์ ไม่มีการส่งภาพออกนอกเครื่อง</footer>
+
+<script type="module">
+import { FilesetResolver, FaceDetector } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18";
+
+// ---------- DOM ----------
+const video = document.getElementById('video');
+const canvas = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+const videoWrap = document.getElementById('videoWrap');
+const placeholder = document.getElementById('placeholder');
+const banner = document.getElementById('banner');
+const startCamBtn = document.getElementById('startCamBtn');
+const stopCamBtn = document.getElementById('stopCamBtn');
+const pickBtn = document.getElementById('pickBtn');
+const restartBtn = document.getElementById('restartBtn');
+const statusText = document.getElementById('statusText');
+const namesArea = document.getElementById('namesArea');
+const namesCount = document.getElementById('namesCount');
+const confSlider = document.getElementById('confSlider');
+const confVal = document.getElementById('confVal');
+const noRepeatToggle = document.getElementById('noRepeatToggle');
+const soundToggle = document.getElementById('soundToggle');
+const showBoxesToggle = document.getElementById('showBoxesToggle');
+const resetPickedBtn = document.getElementById('resetPickedBtn');
+const fsBtn = document.getElementById('fsBtn');
+const fsPickBtn = document.getElementById('fsPickBtn');
+const fsRestartBtn = document.getElementById('fsRestartBtn');
+const fsExitBtn = document.getElementById('fsExitBtn');
+
+// ---------- State ----------
+let faceDetector = null;
+let stream = null;
+let rafId = null;
+let running = false;
+
+let tracks = [];       // {id, x, y, w, h, lastSeen}
+let nextTrackId = 1;
+const TRACK_MATCH_RATIO = 0.12; // 12% of frame diagonal
+const TRACK_TTL_MS = 1500;
+const SMOOTH = 0.35;
+
+let pickedIds = new Set();
+let spinning = false;
+let spinTimer = null;
+
+// ---------- Audio ----------
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function beep(freq, duration = 0.08, type = 'square', gainVal = 0.05) {
+  if (!soundToggle.checked) return;
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.value = gainVal;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  const now = audioCtx.currentTime;
+  gain.gain.setValueAtTime(gainVal, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  osc.start(now);
+  osc.stop(now + duration);
+}
+function playTickSound() {
+  const freq = 660 + Math.random() * 220; // 660-880Hz
+  beep(freq, 0.06, 'square', 0.045);
+}
+function playConfirmSound() {
+  beep(523.25, 0.12, 'sine', 0.07);
+  setTimeout(() => beep(783.99, 0.22, 'sine', 0.08), 90);
+}
+
+// ---------- UI helpers ----------
+function showBanner(msg, kind = 'info') {
+  banner.textContent = msg;
+  banner.className = `banner show ${kind}`;
+}
+function hideBanner() {
+  banner.className = 'banner';
+}
+function setStatus(msg) {
+  statusText.textContent = msg;
+}
+function updateNamesCount() {
+  const lines = namesArea.value.split('\n').map(s => s.trim()).filter(Boolean);
+  namesCount.textContent = `${lines.length} รายชื่อ`;
+  return lines;
+}
+namesArea.addEventListener('input', updateNamesCount);
+updateNamesCount();
+
+confSlider.addEventListener('input', () => {
+  confVal.textContent = Number(confSlider.value).toFixed(2);
+  if (faceDetector) {
+    faceDetector.setOptions({ minDetectionConfidence: Number(confSlider.value) });
+  }
+});
+
+resetPickedBtn.addEventListener('click', () => {
+  pickedIds.clear();
+  setStatus('ล้างประวัติคนที่เคยถูกสุ่มแล้ว');
+});
+
+// ---------- MediaPipe init ----------
+async function initDetector() {
+  const filesetResolver = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm"
+  );
+  faceDetector = await FaceDetector.createFromOptions(filesetResolver, {
+    baseOptions: {
+      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+      delegate: "GPU"
+    },
+    runningMode: "VIDEO",
+    minDetectionConfidence: Number(confSlider.value)
+  });
+}
+
+// ---------- Camera ----------
+async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showBanner('เบราว์เซอร์นี้ไม่รองรับกล้อง หรือหน้านี้ไม่ได้เปิดผ่าน http(s) — ลองรันผ่าน "python3 -m http.server 8000" แล้วเปิด http://localhost:8000', 'error');
+    return;
+  }
+  try {
+    setStatus('กำลังขอสิทธิ์เข้าถึงกล้อง...');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: 'user' },
+      audio: false
+    });
+  } catch (err) {
+    showBanner('ไม่สามารถเข้าถึงกล้องได้: ' + (err.message || err.name), 'error');
+    setStatus('เปิดกล้องไม่สำเร็จ');
+    return;
+  }
+
+  video.srcObject = stream;
+  await new Promise(resolve => {
+    video.onloadedmetadata = () => resolve();
+  });
+  await video.play();
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  videoWrap.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+
+  if (!faceDetector) {
+    setStatus('กำลังโหลดโมเดลตรวจจับใบหน้า...');
+    try {
+      await initDetector();
+    } catch (err) {
+      showBanner('โหลดโมเดลตรวจจับใบหน้าไม่สำเร็จ ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต', 'error');
+      setStatus('เกิดข้อผิดพลาดในการโหลดโมเดล');
+      return;
+    }
+  }
+
+  placeholder.style.display = 'none';
+  fsBtn.style.display = 'block';
+  hideBanner();
+  running = true;
+  tracks = [];
+  pickedIds.clear();
+  pickBtn.disabled = false;
+  fsPickBtn.disabled = false;
+  restartBtn.disabled = false;
+  stopCamBtn.disabled = false;
+  startCamBtn.disabled = true;
+  setStatus('พร้อมสุ่มหน้าแล้ว — กด Space หรือปุ่ม "สุ่ม"');
+  loop();
+}
+
+function stopCamera() {
+  running = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  if (spinTimer) clearTimeout(spinTimer);
+  spinning = false;
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  video.srcObject = null;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  placeholder.style.display = 'flex';
+  fsBtn.style.display = 'none';
+  if (document.fullscreenElement) document.exitFullscreen();
+  hideBanner();
+  pickBtn.disabled = true;
+  fsPickBtn.disabled = true;
+  restartBtn.disabled = true;
+  stopCamBtn.disabled = true;
+  startCamBtn.disabled = false;
+  setStatus('ปิดกล้องแล้ว');
+}
+
+startCamBtn.addEventListener('click', startCamera);
+stopCamBtn.addEventListener('click', stopCamera);
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    videoWrap.requestFullscreen().catch(() => {
+      showBanner('เบราว์เซอร์นี้ไม่รองรับโหมดเต็มจอ', 'error');
+    });
+  } else {
+    document.exitFullscreen();
+  }
+}
+fsBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => {
+  fsBtn.textContent = document.fullscreenElement ? '⤡' : '⛶';
+  fsBtn.title = document.fullscreenElement ? 'ออกจากเต็มจอ' : 'เต็มจอ';
+});
+restartBtn.addEventListener('click', () => {
+  tracks = [];
+  pickedIds.clear();
+  hideBanner();
+  if (spinning && spinTimer) {
+    clearTimeout(spinTimer);
+    spinning = false;
+  }
+  setStatus('รีเซ็ตแล้ว — พร้อมสุ่มใหม่');
+});
+
+// ---------- Tracking ----------
+function centerOf(box) {
+  return { cx: box.x + box.w / 2, cy: box.y + box.h / 2 };
+}
+
+function updateTracks(detections) {
+  const diag = Math.hypot(canvas.width, canvas.height);
+  const matchDist = diag * TRACK_MATCH_RATIO;
+  const now = performance.now();
+  const usedTrackIds = new Set();
+
+  for (const det of detections) {
+    const box = det.boundingBox; // {originX, originY, width, height}
+    const newBox = { x: box.originX, y: box.originY, w: box.width, h: box.height };
+    const nc = centerOf(newBox);
+
+    let best = null;
+    let bestDist = Infinity;
+    for (const t of tracks) {
+      if (usedTrackIds.has(t.id)) continue;
+      const tc = centerOf(t);
+      const d = Math.hypot(nc.cx - tc.cx, nc.cy - tc.cy);
+      if (d < bestDist) { bestDist = d; best = t; }
+    }
+
+    if (best && bestDist <= matchDist) {
+      best.x += (newBox.x - best.x) * SMOOTH;
+      best.y += (newBox.y - best.y) * SMOOTH;
+      best.w += (newBox.w - best.w) * SMOOTH;
+      best.h += (newBox.h - best.h) * SMOOTH;
+      best.lastSeen = now;
+      usedTrackIds.add(best.id);
+    } else {
+      const t = { id: nextTrackId++, x: newBox.x, y: newBox.y, w: newBox.w, h: newBox.h, lastSeen: now };
+      tracks.push(t);
+      usedTrackIds.add(t.id);
+    }
+  }
+
+  tracks = tracks.filter(t => (now - t.lastSeen) <= TRACK_TTL_MS);
+}
+
+// ---------- Drawing ----------
+function mirroredX(x, w) {
+  return canvas.width - x - w;
+}
+
+function drawTracks(highlightId = null, highlightColor = null, labelOverride = null) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!showBoxesToggle.checked && highlightId === null) return;
+
+  for (const t of tracks) {
+    const isHi = t.id === highlightId;
+    if (!isHi && !showBoxesToggle.checked) continue;
+
+    const x = mirroredX(t.x, t.w);
+    const y = t.y;
+    const color = isHi ? highlightColor : 'rgba(77,166,255,0.85)';
+    const lineWidth = isHi ? 5 : 2;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.strokeRect(x, y, t.w, t.h);
+
+    if (isHi && labelOverride) {
+      ctx.font = 'bold 22px "Noto Sans Thai", sans-serif';
+      const textW = ctx.measureText(labelOverride).width;
+      const boxX = Math.max(4, Math.min(x, canvas.width - textW - 16));
+      ctx.fillStyle = color;
+      ctx.fillRect(boxX, Math.max(0, y - 34), textW + 16, 30);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillText(labelOverride, boxX + 8, Math.max(20, y - 12));
+    }
+  }
+}
+
+// ---------- Main loop ----------
+function loop() {
+  if (!running) return;
+  const nowMs = performance.now();
+  if (faceDetector && video.readyState >= 2) {
+    const result = faceDetector.detectForVideo(video, nowMs);
+    updateTracks(result.detections || []);
+  }
+  if (!spinning) {
+    drawTracks();
+  }
+  rafId = requestAnimationFrame(loop);
+}
+
+// ---------- Random pick (spin) ----------
+function getNamesList() {
+  return updateNamesCount();
+}
+
+function getPool() {
+  let pool = tracks.slice();
+  if (noRepeatToggle.checked) {
+    const remaining = pool.filter(t => !pickedIds.has(t.id));
+    if (remaining.length > 0) return remaining;
+    // everyone has been picked at least once -> reset the round
+    pickedIds.clear();
+    return pool;
+  }
+  return pool;
+}
+
+function nameForTrack(track) {
+  const names = getNamesList();
+  if (names.length === 0) return `หน้า #${track.id}`;
+  const idx = tracks.indexOf(track) % names.length;
+  return names[idx];
+}
+
+function startPick() {
+  if (spinning) return;
+  ensureAudio();
+  hideBanner();
+
+  const pool = getPool();
+  if (pool.length === 0) {
+    showBanner('ไม่พบใบหน้าในเฟรม กรุณาให้กล้องเห็นใบหน้าอย่างน้อย 1 คน', 'error');
+    return;
+  }
+
+  spinning = true;
+  pickBtn.disabled = true;
+  fsPickBtn.disabled = true;
+  restartBtn.disabled = false;
+  setStatus('กำลังสุ่ม...');
+
+  const winner = pool[Math.floor(Math.random() * pool.length)];
+  const totalDuration = 2500; // ms
+  const startInterval = 70; // ms
+  const multiplier = 1.17;
+  const colors = ['#ff5c5c', '#ffcc4d', '#3ddc84', '#4da6ff', '#c084fc'];
+
+  let elapsed = 0;
+  let interval = startInterval;
+  let step = 0;
+
+  function tick() {
+    if (!running) { spinning = false; return; }
+    const remaining = tracks.length ? tracks : pool;
+    let highlightTrack;
+    if (elapsed >= totalDuration) {
+      // land on winner (re-find current track object matching winner id, in case it moved)
+      const finalTrack = tracks.find(t => t.id === winner.id) || winner;
+      drawTracks(finalTrack.id, '#3ddc84', 'ตกลงแล้ว!');
+      pickedIds.add(finalTrack.id);
+      playConfirmSound();
+      const label = nameForTrack(finalTrack);
+      setStatus(`🎉 ผลการสุ่ม: ${label}`);
+      showBanner(`ผลการสุ่ม: ${label}`, 'success');
+      spinning = false;
+      pickBtn.disabled = false;
+      fsPickBtn.disabled = false;
+      return;
+    }
+
+    highlightTrack = remaining[Math.floor(Math.random() * remaining.length)];
+    drawTracks(highlightTrack.id, colors[step % colors.length]);
+    playTickSound();
+
+    elapsed += interval;
+    interval *= multiplier;
+    step++;
+    spinTimer = setTimeout(tick, interval);
+  }
+
+  tick();
+}
+
+pickBtn.addEventListener('click', startPick);
+fsPickBtn.addEventListener('click', startPick);
+fsRestartBtn.addEventListener('click', () => restartBtn.click());
+fsExitBtn.addEventListener('click', () => { if (document.fullscreenElement) document.exitFullscreen(); });
+
+// ---------- Keyboard shortcuts ----------
+window.addEventListener('keydown', (e) => {
+  const activeTag = document.activeElement && document.activeElement.tagName;
+  if (activeTag === 'TEXTAREA' || activeTag === 'INPUT') return;
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!pickBtn.disabled) startPick();
+  } else if (e.key === 'r' || e.key === 'R') {
+    if (!restartBtn.disabled) restartBtn.click();
+  } else if (e.key === 'f' || e.key === 'F') {
+    if (fsBtn.style.display !== 'none') toggleFullscreen();
+  } else if (e.key === 'Escape') {
+    if (spinning) {
+      if (spinTimer) clearTimeout(spinTimer);
+      spinning = false;
+      pickBtn.disabled = false;
+      fsPickBtn.disabled = false;
+      setStatus('ยกเลิกการสุ่ม');
+      hideBanner();
+    } else if (!stopCamBtn.disabled) {
+      stopCamera();
+    }
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+});
+</script>
+</body>
+</html>
