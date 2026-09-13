@@ -78,6 +78,15 @@
     height: 100vh;
     border-radius: 0;
   }
+  .zoom-stage {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform-origin: 50% 50%;
+    transform: scale(1);
+    transition: transform 1.1s cubic-bezier(0.22, 1, 0.36, 1), transform-origin 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+  }
   .video-wrap:fullscreen video,
   .video-wrap:fullscreen canvas {
     width: 100%;
@@ -328,8 +337,10 @@
 <main>
   <div class="stage">
     <div class="video-wrap" id="videoWrap">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="overlay"></canvas>
+      <div class="zoom-stage" id="zoomStage">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+      </div>
       <button class="fs-btn" id="fsBtn" title="เต็มจอ" style="display:none;">⛶</button>
       <div class="fs-controls">
         <button class="primary" id="fsPickBtn">🎲 สุ่ม</button>
@@ -431,6 +442,7 @@ const video = document.getElementById('video');
 const canvas = document.getElementById('overlay');
 const ctx = canvas.getContext('2d');
 const videoWrap = document.getElementById('videoWrap');
+const zoomStage = document.getElementById('zoomStage');
 const placeholder = document.getElementById('placeholder');
 const banner = document.getElementById('banner');
 const startCamBtn = document.getElementById('startCamBtn');
@@ -681,6 +693,7 @@ async function startCamera() {
   placeholder.style.display = 'none';
   fsBtn.style.display = 'block';
   hideBanner();
+  resetZoom();
   running = true;
   tracks = [];
   pickedIds.clear();
@@ -718,6 +731,7 @@ function stopCamera() {
   currentFacingMode = 'user';
   video.classList.remove('no-mirror');
   resultCard.hidden = true;
+  resetZoom();
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   setStatus('ปิดกล้องแล้ว');
 }
@@ -781,6 +795,7 @@ restartBtn.addEventListener('click', () => {
   pickedIds.clear();
   hideBanner();
   resultCard.hidden = true;
+  resetZoom();
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   if (spinning && spinTimer) {
     clearTimeout(spinTimer);
@@ -883,6 +898,29 @@ function mirroredX(x, w) {
   return canvas.width - x - w;
 }
 
+const MAX_ZOOM = 2.6;
+const TARGET_FACE_FRACTION = 0.42; // desired face width as a fraction of the frame after zooming
+
+function zoomToTrack(track) {
+  if (!canvas.width || !canvas.height) return;
+  const onscreenX = mirroredX(track.x, track.w) + track.w / 2;
+  const onscreenY = track.y + track.h / 2;
+  const originXPct = (onscreenX / canvas.width) * 100;
+  const originYPct = (onscreenY / canvas.height) * 100;
+
+  const faceFraction = track.w / canvas.width;
+  let zoom = faceFraction > 0 ? TARGET_FACE_FRACTION / faceFraction : 1;
+  zoom = Math.min(MAX_ZOOM, Math.max(1, zoom));
+
+  zoomStage.style.transformOrigin = `${originXPct}% ${originYPct}%`;
+  zoomStage.style.transform = `scale(${zoom})`;
+}
+
+function resetZoom() {
+  zoomStage.style.transform = 'scale(1)';
+  zoomStage.style.transformOrigin = '50% 50%';
+}
+
 function drawTracks(highlightId = null, highlightColor = null, labelOverride = null) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!showBoxesToggle.checked && highlightId === null) return;
@@ -955,6 +993,7 @@ function startPick() {
   ensureAudio();
   hideBanner();
   resultCard.hidden = true;
+  resetZoom();
 
   const pool = getPool();
   if (pool.length === 0) {
@@ -993,6 +1032,7 @@ function startPick() {
       setStatus(`🎉 ผลการสุ่ม: ${label}`);
       showBanner(`ผลการสุ่ม: ${label}`, 'success');
       showResultCard(label, question);
+      zoomToTrack(finalTrack);
       setTimeout(() => speakResult(label, question), 350);
       spinning = false;
       pickBtn.disabled = false;
